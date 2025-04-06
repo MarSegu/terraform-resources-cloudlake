@@ -11,3 +11,6 @@ terraform/terraform.tfstate
 terraform/terraform.tfstate.backup
 terraform/.terraform
 terraform/tfplan
+
+
+provider_only_local.tf
