@@ -1,5 +1,5 @@
 resource "aws_msk_cluster" "cloudlake_msk" {
-  cluster_name           = "cloudlake-msk"
+  cluster_name           = "${var.project_name}-msk-${var.environment}"
   kafka_version          = "3.4.0"
   number_of_broker_nodes = 2
 
@@ -37,7 +37,7 @@ resource "aws_msk_cluster" "cloudlake_msk" {
 }
 
 resource "aws_security_group" "msk_sg" {
-  name        = "cloudlake-msk-sg"
+  name        = "cloudlake-msk-sg-${var.environment}"
   description = "Security group for MSK cluster"
   vpc_id      = aws_vpc.cloudlake_core.id
 
@@ -71,5 +71,101 @@ resource "aws_security_group" "msk_sg" {
 }
 
 resource "aws_cloudwatch_log_group" "msk_cloudwatch" {
-  name = "msk_broker_logs"
+  name = "${var.project_name}_msk_broker_logs_${var.environment}"
+}
+
+resource "aws_mskconnect_connector" "cloudlake_connector" {
+  name                  = "${var.project_name}-msk-connector-${var.environment}"
+  kafkaconnect_version  = "2.7.1"
+  service_execution_role_arn = aws_iam_role.msk_connect_execution_role.arn
+
+  kafka_cluster {
+    apache_kafka_cluster {
+      bootstrap_servers = aws_msk_cluster.cloudlake_msk.bootstrap_brokers_tls
+      vpc {
+        security_groups = [aws_security_group.msk_sg.id]
+        subnets         = [
+          aws_subnet.private_az1.id,
+          aws_subnet.private_az2.id
+        ]
+      }
+    }
+  }
+
+  kafka_cluster_client_authentication {
+    authentication_type = "NONE" # or IAM/SASL if using auth
+  }
+
+  kafka_cluster_encryption_in_transit {
+    encryption_type = "TLS"
+  }
+
+  connector_configuration = {
+    "connector.class" = "org.apache.kafka.connect.mirror.MirrorSourceConnector"
+    "tasks.max"        = "1"
+    "topics"           = ".*"
+    "file"            = "/tmp/output.txt"
+  }
+
+  capacity {
+    provisioned_capacity {
+      mcu_count    = 1
+      worker_count = 1
+    }
+  }
+
+  log_delivery {
+    worker_log_delivery {
+      cloudwatch_logs {
+        enabled   = true
+        log_group = aws_cloudwatch_log_group.msk_connect_logs.name
+      }
+    }
+  }
+
+  plugin {
+    custom_plugin {
+      arn      = aws_mskconnect_custom_plugin.msk_plugin.arn
+      revision = aws_mskconnect_custom_plugin.msk_plugin.latest_revision
+    }
+  }
+
+  tags = var.tags
+}
+
+resource "aws_cloudwatch_log_group" "msk_connect_logs" {
+  name = "cloudlake-msk-connect-logs"
+}
+
+resource "aws_iam_role" "msk_connect_execution_role" {
+  name = "${var.project_name}-msk-connect-execution-role-${var.environment}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Principal = {
+        Service = "kafkaconnect.amazonaws.com"
+      }
+      Effect = "Allow"
+    }]
+  })
+}
+
+resource "aws_mskconnect_custom_plugin" "msk_plugin" {
+  name     = "${var.project_name}-custom-plugin-${var.environment}"
+  content_type = "ZIP"
+  location {
+    s3 {
+      bucket_arn = aws_s3_bucket.plugin_bucket.arn
+      file_key   = "my-connector-plugin.zip"
+    }
+  }
+}
+
+resource "aws_s3_bucket" "plugin_bucket" {
+  bucket = "${var.project_name}-msk-plugin-${var.environment}"
+  force_destroy = true
+
+  tags = var.tags
 }
