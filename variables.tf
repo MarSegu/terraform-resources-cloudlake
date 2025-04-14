@@ -6,14 +6,14 @@ variable "aws_region" {
 # Environment setting
 variable "environment" {
   description = "The environment in which the resources are being deployed (e.g., dev, prod)."
-  default = "dev"
+  default     = "dev"
 }
 
 # Tags for resource organization and identification
 variable "tags" {
   description = "Tags to assign to the resources for categorization and tracking."
   type        = map(string)
-  default     = {
+  default = {
     environment = "dev"
     application = "cloudlake"
     terraform   = "true"
