@@ -46,9 +46,12 @@ resource "aws_subnet" "private_az3" {
 resource "aws_route_table" "private_rt" {
   vpc_id = aws_vpc.cloudlake_core.id
 
-  tags = {
-    Name = "cloudlake-private-rt"
-  }
+  tags = merge(
+    var.tags,
+    {
+      Name = "cloudlake-private-rt-${var.environment}"
+    }
+  )
 }
 
 resource "aws_route_table_association" "private_az1_assoc" {
@@ -78,4 +81,90 @@ resource "aws_vpc_endpoint" "cloudlake_msk_interface" {
   private_dns_enabled = false
 
   tags = var.tags
+}
+
+
+#EC2 network configuration
+
+# Add a public subnet for NAT Gateway
+resource "aws_subnet" "public_az1" {
+  vpc_id                  = aws_vpc.cloudlake_core.id
+  cidr_block              = "10.0.101.0/24"
+  availability_zone       = data.aws_availability_zones.available.names[0]
+  map_public_ip_on_launch = true
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "cloudlake-public-subnet-az1-${var.environment}"
+    }
+  )
+}
+
+# Internet Gateway
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.cloudlake_core.id
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "cloudlake-igw-${var.environment}"
+    }
+  )
+}
+
+# Public Route Table
+resource "aws_route_table" "public_rt" {
+  vpc_id = aws_vpc.cloudlake_core.id
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "cloudlake-public-rt-${var.environment}"
+    }
+  )
+}
+
+# Route to Internet via IGW
+resource "aws_route" "public_internet_route" {
+  route_table_id         = aws_route_table.public_rt.id
+  destination_cidr_block = "0.0.0.0/0"
+  gateway_id             = aws_internet_gateway.igw.id
+}
+
+# Associate public subnet with public route table
+resource "aws_route_table_association" "public_az1_assoc" {
+  subnet_id      = aws_subnet.public_az1.id
+  route_table_id = aws_route_table.public_rt.id
+}
+
+# NAT Gateway
+resource "aws_eip" "nat_eip" {
+  domain = "vpc"
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "cloudlake-nat-eip-${var.environment}"
+    }
+  )
+}
+
+resource "aws_nat_gateway" "nat_gw" {
+  allocation_id = aws_eip.nat_eip.id
+  subnet_id     = aws_subnet.public_az1.id
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "cloudlake-nat-gw-${var.environment}"
+    }
+  )
+}
+
+# Add route to private route table for internet access via NAT Gateway
+resource "aws_route" "private_internet_route" {
+  route_table_id         = aws_route_table.private_rt.id
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id         = aws_nat_gateway.nat_gw.id
 }
