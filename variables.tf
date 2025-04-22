@@ -31,3 +31,17 @@ variable "key_name" {
   type        = string
   default     = "cloudlake-admin-key"
 }
+
+#site-to-site
+variable "preshared_key_1" {
+  description = "key for site-to-site tunnel 1 vpn conf"
+  type        = string
+  default     = "8RxCia0Gl7"
+}
+
+variable "preshared_key_2" {
+  description = "key for site-to-site tunnel 2 vpn conf"
+  type        = string
+  default     = "LoNm68k7SL"
+}
+

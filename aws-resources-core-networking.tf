@@ -49,7 +49,7 @@ resource "aws_route_table" "private_rt" {
   tags = merge(
     var.tags,
     {
-      Name = "cloudlake-private-rt-${var.environment}"
+      Name = "${var.project_name}-private-rt-${var.environment}"
     }
   )
 }
@@ -62,12 +62,6 @@ resource "aws_route_table_association" "private_az1_assoc" {
 resource "aws_route_table_association" "private_az2_assoc" {
   subnet_id      = aws_subnet.private_az2.id
   route_table_id = aws_route_table.private_rt.id
-}
-
-# Virtual Private Gateway (VGW)
-resource "aws_vpn_gateway" "cloudlake_vgw" {
-  vpc_id = aws_vpc.cloudlake_core.id
-  tags   = var.tags
 }
 
 # VPC Endpoint (Interface Type for MSK)
