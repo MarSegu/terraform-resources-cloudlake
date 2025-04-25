@@ -1,8 +1,13 @@
 resource "aws_vpc" "cloudlake_core" {
-  cidr_block           = "10.0.0.0/16"
+  cidr_block           = "10.0.0.0/24"
   enable_dns_support   = true
   enable_dns_hostnames = true
-  tags                 = var.tags
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.project_name}-core-vpc-${var.environment}"
+    }
+  )
 }
 
 resource "aws_vpc_dhcp_options" "cloudlake_dhcp" {
@@ -19,31 +24,31 @@ resource "aws_vpc_dhcp_options_association" "cloudlake_dhcp_assoc" {
 
 data "aws_availability_zones" "available" {}
 
-resource "aws_subnet" "private_az1" {
+resource "aws_subnet" "private_core_az1" {
   vpc_id                  = aws_vpc.cloudlake_core.id
-  cidr_block              = "10.0.1.0/24"
+  cidr_block              = "10.0.0.0/25"
   availability_zone       = data.aws_availability_zones.available.names[0]
   map_public_ip_on_launch = false
   tags                    = var.tags
 }
 
-resource "aws_subnet" "private_az2" {
+resource "aws_subnet" "private_core_az2" {
   vpc_id            = aws_vpc.cloudlake_core.id
-  cidr_block        = "10.0.2.0/24"
+  cidr_block        = "10.0.0.128/25"
   availability_zone = data.aws_availability_zones.available.names[1]
-  tags              = { Name = "cloudlake-private-subnet-az2" }
+  tags              = { Name = "${var.project_name}-private-subnet-az2" }
 }
 
-resource "aws_subnet" "private_az3" {
+resource "aws_subnet" "private_core_az3" {
   vpc_id                  = aws_vpc.cloudlake_core.id
-  cidr_block              = "10.0.3.0/24"
+  cidr_block              = "10.0.1.0/26"
   availability_zone       = data.aws_availability_zones.available.names[2]
   map_public_ip_on_launch = false
-  tags                    = { Name = "cloudlake-private-subnet-az3" }
+  tags                    = { Name = "${var.project_name}-private-subnet-az3" }
 }
 
 #to define explicit routing
-resource "aws_route_table" "private_rt" {
+resource "aws_route_table" "private_core_rt" {
   vpc_id = aws_vpc.cloudlake_core.id
 
   tags = merge(
@@ -54,14 +59,14 @@ resource "aws_route_table" "private_rt" {
   )
 }
 
-resource "aws_route_table_association" "private_az1_assoc" {
-  subnet_id      = aws_subnet.private_az1.id
-  route_table_id = aws_route_table.private_rt.id
+resource "aws_route_table_association" "private_az1_core_assoc" {
+  subnet_id      = aws_subnet.private_core_az1.id
+  route_table_id = aws_route_table.private_core_rt.id
 }
 
-resource "aws_route_table_association" "private_az2_assoc" {
-  subnet_id      = aws_subnet.private_az2.id
-  route_table_id = aws_route_table.private_rt.id
+resource "aws_route_table_association" "private_az2_core_assoc" {
+  subnet_id      = aws_subnet.private_core_az2.id
+  route_table_id = aws_route_table.private_core_rt.id
 }
 
 # VPC Endpoint (Interface Type for MSK)
@@ -69,7 +74,7 @@ resource "aws_vpc_endpoint" "cloudlake_msk_interface" {
   vpc_id             = aws_vpc.cloudlake_core.id
   service_name       = "com.amazonaws.${var.aws_region}.kafka"
   vpc_endpoint_type  = "Interface"
-  subnet_ids         = [aws_subnet.private_az1.id, aws_subnet.private_az2.id]
+  subnet_ids         = [aws_subnet.private_core_az1.id, aws_subnet.private_core_az2.id]
   security_group_ids = [aws_security_group.msk_sg.id]
 
   private_dns_enabled = false
@@ -81,7 +86,7 @@ resource "aws_vpc_endpoint" "cloudlake_msk_interface" {
 #EC2 network configuration
 
 # Add a public subnet for NAT Gateway
-resource "aws_subnet" "public_az1" {
+resource "aws_subnet" "public_core_az1" {
   vpc_id                  = aws_vpc.cloudlake_core.id
   cidr_block              = "10.0.101.0/24"
   availability_zone       = data.aws_availability_zones.available.names[0]
@@ -90,75 +95,75 @@ resource "aws_subnet" "public_az1" {
   tags = merge(
     var.tags,
     {
-      Name = "cloudlake-public-subnet-az1-${var.environment}"
+      Name = "${var.project_name}-public-subnet-az1-${var.environment}"
     }
   )
 }
 
 # Internet Gateway
-resource "aws_internet_gateway" "igw" {
+resource "aws_internet_gateway" "core_igw" {
   vpc_id = aws_vpc.cloudlake_core.id
 
   tags = merge(
     var.tags,
     {
-      Name = "cloudlake-igw-${var.environment}"
+      Name = "${var.project_name}-igw-${var.environment}"
     }
   )
 }
 
 # Public Route Table
-resource "aws_route_table" "public_rt" {
+resource "aws_route_table" "public_core_rt" {
   vpc_id = aws_vpc.cloudlake_core.id
 
   tags = merge(
     var.tags,
     {
-      Name = "cloudlake-public-rt-${var.environment}"
+      Name = "${var.project_name}-public-rt-${var.environment}"
     }
   )
 }
 
 # Route to Internet via IGW
-resource "aws_route" "public_internet_route" {
-  route_table_id         = aws_route_table.public_rt.id
+resource "aws_route" "public_core_internet_route" {
+  route_table_id         = aws_route_table.private_core_rt.id
   destination_cidr_block = "0.0.0.0/0"
-  gateway_id             = aws_internet_gateway.igw.id
+  gateway_id             = aws_internet_gateway.core_igw.id
 }
 
 # Associate public subnet with public route table
-resource "aws_route_table_association" "public_az1_assoc" {
-  subnet_id      = aws_subnet.public_az1.id
-  route_table_id = aws_route_table.public_rt.id
+resource "aws_route_table_association" "public_az1_core_assoc" {
+  subnet_id      = aws_subnet.private_core_az1.id
+  route_table_id = aws_route_table.private_core_rt.id
 }
 
 # NAT Gateway
-resource "aws_eip" "nat_eip" {
+resource "aws_eip" "nat_core_eip" {
   domain = "vpc"
 
   tags = merge(
     var.tags,
     {
-      Name = "cloudlake-nat-eip-${var.environment}"
+      Name = "${var.project_name}-nat-eip-${var.environment}"
     }
   )
 }
 
-resource "aws_nat_gateway" "nat_gw" {
-  allocation_id = aws_eip.nat_eip.id
-  subnet_id     = aws_subnet.public_az1.id
+resource "aws_nat_gateway" "nat_core_gw" {
+  allocation_id = aws_eip.nat_core_eip.id
+  subnet_id     = aws_subnet.public_core_az1.id
 
   tags = merge(
     var.tags,
     {
-      Name = "cloudlake-nat-gw-${var.environment}"
+      Name = "${var.project_name}-nat-gw-${var.environment}"
     }
   )
 }
 
 # Add route to private route table for internet access via NAT Gateway
-resource "aws_route" "private_internet_route" {
-  route_table_id         = aws_route_table.private_rt.id
+resource "aws_route" "private_core_internet_route" {
+  route_table_id         = aws_route_table.private_core_rt.id
   destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = aws_nat_gateway.nat_gw.id
+  nat_gateway_id         = aws_nat_gateway.nat_core_gw.id
 }

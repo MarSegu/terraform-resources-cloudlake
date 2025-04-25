@@ -12,8 +12,8 @@ resource "aws_vpn_gateway" "cloudlake_vgw" {
 
 # Represents on-premises VPN device
 resource "aws_customer_gateway" "cgw" {
-  bgp_asn    = 65000     # On-premises ASN (use your own ASN)
-  ip_address = "209.45.68.65" 
+  bgp_asn    = 65000 # On-premises ASN (use your own ASN)
+  ip_address = "209.45.68.65"
   type       = "ipsec.1"
   tags = merge(
     var.tags,
@@ -32,8 +32,8 @@ resource "aws_vpn_connection" "vpn_connection" {
   static_routes_only = true
 
   # Tunnel options with the inside IP CIDR for both tunnels
-  tunnel1_inside_cidr  = "169.254.16.56/30"
-  tunnel2_inside_cidr  = "169.254.21.36/30"
+  tunnel1_inside_cidr = "169.254.16.56/30"
+  tunnel2_inside_cidr = "169.254.21.36/30"
 
   # Tunnel pre-shared keys (PSK) for both tunnels
   tunnel1_preshared_key = var.preshared_key_1

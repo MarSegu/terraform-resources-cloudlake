@@ -6,9 +6,9 @@ resource "aws_msk_cluster" "cloudlake_msk" {
   broker_node_group_info {
     instance_type = "kafka.t3.small"
     client_subnets = [
-      aws_subnet.private_az1.id,
-      aws_subnet.private_az2.id,
-      aws_subnet.private_az3.id
+      aws_subnet.private_core_az1.id,
+      aws_subnet.private_core_az2.id,
+      aws_subnet.private_core_az3.id
     ]
     security_groups = [aws_security_group.msk_sg.id]
     storage_info {
@@ -48,10 +48,7 @@ resource "aws_kms_key" "msk_kms_key" {
   multi_region                       = false
   bypass_policy_lockout_safety_check = false
 
-  tags = {
-    Project     = "Kafka"
-    environment = "dev"
-  }
+  tags = var.tags
 }
 
 data "aws_caller_identity" "current" {}
@@ -101,7 +98,7 @@ resource "aws_kms_key_policy" "kafka_kms_policy" {
 }
 
 resource "aws_security_group" "msk_sg" {
-  name        = "cloudlake-msk-sg-${var.environment}"
+  name        = "${var.project_name}-msk-sg-${var.environment}"
   description = "Security group for MSK cluster"
   vpc_id      = aws_vpc.cloudlake_core.id
 
@@ -206,8 +203,8 @@ resource "aws_mskconnect_connector" "cloudlake_connector" {
       vpc {
         security_groups = [aws_security_group.msk_sg.id]
         subnets = [
-          aws_subnet.private_az1.id,
-          aws_subnet.private_az2.id
+          aws_subnet.private_core_az1.id,
+          aws_subnet.private_core_az2.id
         ]
       }
     }
@@ -274,7 +271,7 @@ resource "aws_mskconnect_custom_plugin" "msk_plugin" {
 }
 
 resource "aws_cloudwatch_log_group" "msk_connect_logs" {
-  name = "cloudlake-msk-connect-logs"
+  name = "${var.project_name}-msk-connect-logs"
 }
 
 # MSK Management
@@ -312,7 +309,7 @@ resource "aws_security_group" "kafka_client_sg" {
 resource "aws_instance" "kafka_client" {
   ami                    = "ami-0c2b8ca1dad447f8a" # Ensure this is the correct AMI for your region
   instance_type          = "t3.small"
-  subnet_id              = aws_subnet.private_az1.id
+  subnet_id              = aws_subnet.private_core_az1.id
   vpc_security_group_ids = [aws_security_group.kafka_client_sg.id]
   key_name               = var.key_name
 
@@ -403,14 +400,14 @@ resource "aws_vpc_endpoint" "ssm" {
   vpc_id              = aws_vpc.cloudlake_core.id
   service_name        = "com.amazonaws.${var.aws_region}.ssm"
   vpc_endpoint_type   = "Interface"
-  subnet_ids          = [aws_subnet.private_az1.id]
+  subnet_ids          = [aws_subnet.private_core_az1.id]
   security_group_ids  = [aws_security_group.vpce_sg.id]
   private_dns_enabled = true
 
   tags = merge(
     var.tags,
     {
-      Name = "cloudlake-ssm-endpoint-${var.environment}"
+      Name = "${var.project_name}-ssm-endpoint-${var.environment}"
     }
   )
 }
@@ -419,14 +416,14 @@ resource "aws_vpc_endpoint" "ssmmessages" {
   vpc_id              = aws_vpc.cloudlake_core.id
   service_name        = "com.amazonaws.${var.aws_region}.ssmmessages"
   vpc_endpoint_type   = "Interface"
-  subnet_ids          = [aws_subnet.private_az1.id]
+  subnet_ids          = [aws_subnet.private_core_az1.id]
   security_group_ids  = [aws_security_group.vpce_sg.id]
   private_dns_enabled = true
 
   tags = merge(
     var.tags,
     {
-      Name = "cloudlake-ssmmessages-endpoint-${var.environment}"
+      Name = "${var.project_name}-ssmmessages-endpoint-${var.environment}"
     }
   )
 }
@@ -435,14 +432,14 @@ resource "aws_vpc_endpoint" "ec2messages" {
   vpc_id              = aws_vpc.cloudlake_core.id
   service_name        = "com.amazonaws.${var.aws_region}.ec2messages"
   vpc_endpoint_type   = "Interface"
-  subnet_ids          = [aws_subnet.private_az1.id]
+  subnet_ids          = [aws_subnet.private_core_az1.id]
   security_group_ids  = [aws_security_group.vpce_sg.id]
   private_dns_enabled = true
 
   tags = merge(
     var.tags,
     {
-      Name = "cloudlake-ec2messages-endpoint-${var.environment}"
+      Name = "${var.project_name}-ec2messages-endpoint-${var.environment}"
     }
   )
 }
@@ -452,12 +449,12 @@ resource "aws_vpc_endpoint" "s3" {
   vpc_id            = aws_vpc.cloudlake_core.id
   service_name      = "com.amazonaws.${var.aws_region}.s3"
   vpc_endpoint_type = "Gateway"
-  route_table_ids   = [aws_route_table.private_rt.id]
+  route_table_ids   = [aws_route_table.private_core_rt.id]
 
   tags = merge(
     var.tags,
     {
-      Name = "cloudlake-s3-endpoint-${var.environment}"
+      Name = "${var.project_name}-s3-endpoint-${var.environment}"
     }
   )
 }

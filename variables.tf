@@ -36,12 +36,12 @@ variable "key_name" {
 variable "preshared_key_1" {
   description = "key for site-to-site tunnel 1 vpn conf"
   type        = string
-  default     = "sample1"
+  default     = "8RxCia0Gl7"
 }
 
 variable "preshared_key_2" {
   description = "key for site-to-site tunnel 2 vpn conf"
   type        = string
-  default     = "sample2"
+  default     = "LoNm68k7SL"
 }
 
