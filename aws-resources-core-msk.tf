@@ -311,7 +311,7 @@ resource "aws_instance" "kafka_client" {
   instance_type          = "t3.small"
   subnet_id              = aws_subnet.private_core_az1.id
   vpc_security_group_ids = [aws_security_group.kafka_client_sg.id]
-  key_name               = var.key_name
+  key_name               = var.ec2_msk_key_name
 
   iam_instance_profile = aws_iam_instance_profile.ec2_ssm_profile.name
 

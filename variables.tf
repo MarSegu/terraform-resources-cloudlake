@@ -6,18 +6,12 @@ variable "aws_region" {
 # Environment setting
 variable "environment" {
   description = "The environment in which the resources are being deployed (e.g., dev, prod)."
-  default     = "dev"
 }
 
 # Tags for resource organization and identification
 variable "tags" {
   description = "Tags to assign to the resources for categorization and tracking."
   type        = map(string)
-  default = {
-    environment = "dev"
-    application = "cloudlake"
-    terraform   = "true"
-  }
 }
 
 variable "project_name" {
@@ -26,22 +20,31 @@ variable "project_name" {
 }
 
 # MSK
-variable "key_name" {
+variable "ec2_msk_key_name" {
   description = "Name of the EC2 key pair for SSH access"
   type        = string
-  default     = "cloudlake-admin-key"
 }
 
 #site-to-site
-variable "preshared_key_1" {
+variable "vpn_preshared_key_1" {
   description = "key for site-to-site tunnel 1 vpn conf"
   type        = string
-  default     = "8RxCia0Gl7"
+  sensitive   = true
 }
 
-variable "preshared_key_2" {
+variable "vpn_preshared_key_2" {
   description = "key for site-to-site tunnel 2 vpn conf"
   type        = string
-  default     = "LoNm68k7SL"
+  sensitive   = true
+}
+
+variable "redshift_db_username" {
+  description = "DB username for DB in Redshift cluster"
+  type        = string
+}
+
+variable "redshift_db_password" {
+  description = "DB password for DB in Redshift cluster"
+  type        = string
 }
 

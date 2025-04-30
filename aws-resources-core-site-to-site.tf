@@ -36,8 +36,8 @@ resource "aws_vpn_connection" "vpn_connection" {
   tunnel2_inside_cidr = "169.254.21.36/30"
 
   # Tunnel pre-shared keys (PSK) for both tunnels
-  tunnel1_preshared_key = var.preshared_key_1
-  tunnel2_preshared_key = var.preshared_key_2
+  tunnel1_preshared_key = var.vpn_preshared_key_1
+  tunnel2_preshared_key = var.vpn_preshared_key_2
 
   tags = merge(
     var.tags,

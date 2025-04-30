@@ -1,5 +1,5 @@
 resource "aws_vpc" "cloudlake_core" {
-  cidr_block           = "10.0.0.0/24"
+  cidr_block           = "10.0.5.0/24"
   enable_dns_support   = true
   enable_dns_hostnames = true
   tags = merge(
@@ -26,7 +26,7 @@ data "aws_availability_zones" "available" {}
 
 resource "aws_subnet" "private_core_az1" {
   vpc_id                  = aws_vpc.cloudlake_core.id
-  cidr_block              = "10.0.0.0/25"
+  cidr_block              = "10.0.5.0/26"
   availability_zone       = data.aws_availability_zones.available.names[0]
   map_public_ip_on_launch = false
   tags                    = var.tags
@@ -34,14 +34,14 @@ resource "aws_subnet" "private_core_az1" {
 
 resource "aws_subnet" "private_core_az2" {
   vpc_id            = aws_vpc.cloudlake_core.id
-  cidr_block        = "10.0.0.128/25"
+  cidr_block        = "10.0.5.64/26"
   availability_zone = data.aws_availability_zones.available.names[1]
   tags              = { Name = "${var.project_name}-private-subnet-az2" }
 }
 
 resource "aws_subnet" "private_core_az3" {
   vpc_id                  = aws_vpc.cloudlake_core.id
-  cidr_block              = "10.0.1.0/26"
+  cidr_block              = "10.0.5.128/26"
   availability_zone       = data.aws_availability_zones.available.names[2]
   map_public_ip_on_launch = false
   tags                    = { Name = "${var.project_name}-private-subnet-az3" }
@@ -88,7 +88,7 @@ resource "aws_vpc_endpoint" "cloudlake_msk_interface" {
 # Add a public subnet for NAT Gateway
 resource "aws_subnet" "public_core_az1" {
   vpc_id                  = aws_vpc.cloudlake_core.id
-  cidr_block              = "10.0.101.0/24"
+  cidr_block              = "10.0.5.192/26"
   availability_zone       = data.aws_availability_zones.available.names[0]
   map_public_ip_on_launch = true
 
@@ -161,9 +161,3 @@ resource "aws_nat_gateway" "nat_core_gw" {
   )
 }
 
-# Add route to private route table for internet access via NAT Gateway
-resource "aws_route" "private_core_internet_route" {
-  route_table_id         = aws_route_table.private_core_rt.id
-  destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = aws_nat_gateway.nat_core_gw.id
-}
