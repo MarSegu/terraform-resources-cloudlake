@@ -48,7 +48,7 @@ resource "aws_redshift_cluster" "data_logs_cluster" {
   vpc_security_group_ids    = [aws_security_group.redshift_sg.id]
   cluster_subnet_group_name = aws_redshift_subnet_group.redshift_subnet_group.name
 
-  publicly_accessible = true
+  publicly_accessible       = true
   final_snapshot_identifier = "data-logs-cluster-final-snapshot-${var.environment}"
 
   tags = merge(

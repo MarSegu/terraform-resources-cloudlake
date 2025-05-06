@@ -69,6 +69,11 @@ resource "aws_route_table_association" "private_az2_core_assoc" {
   route_table_id = aws_route_table.private_core_rt.id
 }
 
+resource "aws_route_table_association" "private_az3_core_assoc" {
+  subnet_id      = aws_subnet.private_core_az3.id
+  route_table_id = aws_route_table.private_core_rt.id
+}
+
 # VPC Endpoint (Interface Type for MSK)
 resource "aws_vpc_endpoint" "cloudlake_msk_interface" {
   vpc_id             = aws_vpc.cloudlake_core.id
@@ -124,17 +129,24 @@ resource "aws_route_table" "public_core_rt" {
   )
 }
 
-# Route to Internet via IGW
+# Route to Internet via IGW for public subnet
 resource "aws_route" "public_core_internet_route" {
-  route_table_id         = aws_route_table.private_core_rt.id
+  route_table_id         = aws_route_table.public_core_rt.id
   destination_cidr_block = "0.0.0.0/0"
   gateway_id             = aws_internet_gateway.core_igw.id
 }
 
+# Route to Internet via NAT Gateway for private subnet
+resource "aws_route" "private_core_nat_route" {
+  route_table_id         = aws_route_table.private_core_rt.id
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id         = aws_nat_gateway.nat_core_gw.id
+}
+
 # Associate public subnet with public route table
 resource "aws_route_table_association" "public_az1_core_assoc" {
-  subnet_id      = aws_subnet.private_core_az1.id
-  route_table_id = aws_route_table.private_core_rt.id
+  subnet_id      = aws_subnet.public_core_az1.id
+  route_table_id = aws_route_table.public_core_rt.id
 }
 
 # NAT Gateway
@@ -161,3 +173,25 @@ resource "aws_nat_gateway" "nat_core_gw" {
   )
 }
 
+# Security group for VPC endpoints
+resource "aws_security_group" "vpce_sg" {
+  name        = "vpce-sg-${var.environment}"
+  description = "Security group for VPC endpoints"
+  vpc_id      = aws_vpc.cloudlake_core.id
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.cloudlake_core.cidr_block]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = var.tags
+}

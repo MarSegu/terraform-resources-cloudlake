@@ -111,6 +111,57 @@ resource "aws_iam_role_policy_attachment" "emr_policy_attachment" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonElasticMapReduceFullAccess"
 }
 
+resource "aws_iam_role_policy_attachment" "ec2_redshift_data_full" {
+  role       = aws_iam_role.ec2_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonRedshiftDataFullAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "ec2_redshift_full" {
+  role       = aws_iam_role.ec2_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonRedshiftFullAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "ec2_secrets_read_write" {
+  role       = aws_iam_role.ec2_role.name
+  policy_arn = "arn:aws:iam::aws:policy/SecretsManagerReadWrite"
+}
+
+resource "aws_iam_policy" "ec2_custom_s3_policy" {
+  name        = "${var.project_name}-custom-s3-policy-${var.environment}"
+  description = "Custom S3 access policy"
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "s3:AbortMultipartUpload",
+          "s3:CreateBucket",
+          "s3:DeleteObject",
+          "s3:GetBucketVersioning",
+          "s3:GetObject",
+          "s3:GetObjectTagging",
+          "s3:GetObjectVersion",
+          "s3:ListBucket",
+          "s3:ListBucketMultipartUploads",
+          "s3:ListBucketVersions",
+          "s3:ListMultipartUploadParts",
+          "s3:PutBucketVersioning",
+          "s3:PutObject",
+          "s3:PutObjectTagging"
+        ],
+        Resource = ["arn:aws:s3:::*"]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_policy_attachment" "ec2_attach_custom_s3" {
+  name       = "attach-${aws_iam_policy.ec2_custom_s3_policy.name}"
+  roles      = [aws_iam_role.ec2_role.name]
+  policy_arn = aws_iam_policy.ec2_custom_s3_policy.arn
+}
+
 #security groups
 resource "aws_security_group" "emr_sg" {
   name        = "${var.project_name}-emr-sg-${var.environment}"
