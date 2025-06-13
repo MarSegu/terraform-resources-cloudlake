@@ -16,3 +16,5 @@ terraform.tfvars
 terraform.*
 
 provider_only_local.tf
+
+*.tfstate

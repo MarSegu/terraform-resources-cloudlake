@@ -58,3 +58,24 @@ resource "aws_redshift_cluster" "data_logs_cluster" {
     }
   )
 }
+
+#Cloudwatch
+
+resource "aws_cloudwatch_metric_alarm" "redshift_cpu_alarm" {
+  alarm_name          = "${var.project_name}-redshift-cpu-high-${var.environment}"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/Redshift"
+  period              = "300"
+  statistic           = "Average"
+  threshold           = 80
+
+  alarm_description = "Triggers if Redshift CPU usage exceeds 80%"
+
+  dimensions = {
+    ClusterIdentifier = aws_redshift_cluster.data_logs_cluster.cluster_identifier
+  }
+
+  treat_missing_data = "notBreaching"
+}

@@ -250,7 +250,7 @@ resource "aws_mskconnect_connector" "cloudlake_connector" {
     "partitioner.class"              = "io.confluent.connect.storage.partitioner.DefaultPartitioner"
     "value.converter"                = "org.apache.kafka.connect.json.JsonConverter"
     "value.converter.schemas.enable" = "false"
-    "behavior.on.null.values"   = "ignore"
+    "behavior.on.null.values"        = "ignore"
   }
 
   capacity {
