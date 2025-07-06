@@ -9,7 +9,9 @@ variables:
 
 init:
   stage: init
-  image: hashicorp/terraform:latest
+  image:
+    name: hashicorp/terraform:latest
+    entrypoint: [""]
   tags:
     - docker
   script:
@@ -23,7 +25,9 @@ init:
 
 validate:
   stage: validate
-  image: hashicorp/terraform:latest
+  image:
+    name: hashicorp/terraform:latest
+    entrypoint: [""]
   tags:
     - docker
   dependencies:
@@ -33,7 +37,9 @@ validate:
 
 plan:
   stage: plan
-  image: hashicorp/terraform:latest
+  image:
+    name: hashicorp/terraform:latest
+    entrypoint: [""]
   tags:
     - docker
   dependencies:
