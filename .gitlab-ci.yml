@@ -1,12 +1,24 @@
 stages:
-  - test
+  - validate
+  - plan
 
-test-runner:
-  stage: test
-  image: alpine:latest
+validate:
+  stage: validate
+  image: hashicorp/terraform:light
   tags:
     - docker
   script:
-    - echo "Runner is working!"
-    - uname -a
-    - echo "Success ✅"
+    - terraform init
+    - terraform validate
+
+plan:
+  stage: plan
+  image: hashicorp/terraform:light
+  tags:
+    - docker
+  script:
+    - terraform plan -out=tfplan
+  artifacts:
+    paths:
+      - tfplan
+    expire_in: 1 hour
