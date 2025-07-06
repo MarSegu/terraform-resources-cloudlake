@@ -1,0 +1,12 @@
+stages:
+  - test
+
+test-runner:
+  stage: test
+  image: alpine:latest
+  tags:
+    - docker
+  script:
+    - echo "Runner is working!"
+    - uname -a
+    - echo "Success ✅"
