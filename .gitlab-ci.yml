@@ -1,21 +1,43 @@
 stages:
+  - init
   - validate
   - plan
 
-validate:
-  stage: validate
-  image: hashicorp/terraform:light
+variables:
+  TF_IN_AUTOMATION: "true"
+  TF_LOG: "DEBUG"
+
+init:
+  stage: init
+  image: hashicorp/terraform:latest
   tags:
     - docker
   script:
+    - terraform --version
     - terraform init
+    - ls -la
+  artifacts:
+    paths:
+      - .terraform/
+    expire_in: 1 hour
+
+validate:
+  stage: validate
+  image: hashicorp/terraform:latest
+  tags:
+    - docker
+  dependencies:
+    - init
+  script:
     - terraform validate
 
 plan:
   stage: plan
-  image: hashicorp/terraform:light
+  image: hashicorp/terraform:latest
   tags:
     - docker
+  dependencies:
+    - init
   script:
     - terraform plan -out=tfplan
   artifacts:
