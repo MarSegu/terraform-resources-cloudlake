@@ -48,7 +48,9 @@ plan:
   dependencies:
     - init
   script:
-    - terraform plan -out=tfplan
+    - chmod +x scripts/download-tfvars.sh
+    - ./scripts/download-tfvars.sh
+    - terraform plan -var-file=terraform.tfvars -out=tfplan
   artifacts:
     paths:
       - tfplan
