@@ -18,10 +18,6 @@ init:
     - terraform --version
     - terraform init
     - ls -la
-  artifacts:
-    paths:
-      - .terraform/
-    expire_in: 1 hour
 
 validate:
   stage: validate
