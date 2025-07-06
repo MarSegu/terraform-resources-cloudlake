@@ -1,3 +1,9 @@
+default:
+  cache:
+    key: terraform-cache
+    paths:
+      - .terraform/
+
 stages:
   - init
   - validate
