@@ -1,3 +1,7 @@
+stages:
+  - validate
+  - plan
+
 validate:
   stage: validate
   image: hashicorp/terraform:light
