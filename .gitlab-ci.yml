@@ -21,19 +21,15 @@ variables:
   TF_VAR_FILE: "terraform.tfvars"
 
 before_script:
-  - chmod +x scripts/download-tfvars.sh
+  - chmod +x scripts/download-tfvars.sh scripts/backend-env.sh
+  - export BACKEND_ENV=$(./scripts/backend-env.sh)
   - ./scripts/download-tfvars.sh
 
 init:
   stage: init
   script:
     - terraform --version
-    - |
-      if [[ "$CI_COMMIT_BRANCH" == "dev" || "$CI_COMMIT_BRANCH" == "stage" || "$CI_COMMIT_BRANCH" == "prod" ]]; then
-        terraform init -backend-config=backend-${CI_COMMIT_BRANCH}.hcl
-      else
-        terraform init -backend=false
-      fi
+    - terraform init -backend-config=backend-${BACKEND_ENV}.hcl
     - ls -la
   rules:
     - if: '$CI_COMMIT_BRANCH'
@@ -55,7 +51,7 @@ plan:
   dependencies:
     - init
   script:
-    - terraform init -backend=false
+    - terraform init -backend-config=backend-${BACKEND_ENV}.hcl
     - terraform plan -var-file=${TF_VAR_FILE} -out=tfplan
     - terraform show -no-color tfplan
   artifacts:
@@ -65,3 +61,18 @@ plan:
   rules:
     - if: '$CI_COMMIT_BRANCH'
       when: always
+
+apply:
+  stage: apply
+  dependencies:
+    - plan
+  script:
+    - terraform init -backend-config=backend-${BACKEND_ENV}.hcl
+    - terraform apply -input=false tfplan
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_BRANCH == "stage" || $CI_COMMIT_BRANCH == "prod"'
+      when: manual
+    - when: never  # All other branches
+
+after_script:
+  - rm -f terraform.tfvars

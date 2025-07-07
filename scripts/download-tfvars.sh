@@ -20,7 +20,7 @@ case "$CI_COMMIT_REF_NAME" in
     ENV_PATH="$CI_COMMIT_REF_NAME"
     ;;
   *)
-    ENV_PATH="feature"
+    ENV_PATH="dev"
     ;;
 esac
 
