@@ -50,6 +50,7 @@ plan:
   script:
     - chmod +x scripts/download-tfvars.sh
     - ./scripts/download-tfvars.sh
+    - terraform init -backend=false
     - terraform plan -var-file=terraform.tfvars -out=tfplan
   artifacts:
     paths:
