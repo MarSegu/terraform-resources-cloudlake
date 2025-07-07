@@ -29,7 +29,7 @@ init:
   stage: init
   script:
     - terraform --version
-    - terraform init -backend-config=backend-${BACKEND_ENV}.hcl
+    - terraform init -reconfigure -backend-config=backend-${BACKEND_ENV}.hcl
     - ls -la
   rules:
     - if: '$CI_COMMIT_BRANCH'
@@ -44,14 +44,14 @@ validate:
     - terraform validate
   rules:
     - if: '$CI_COMMIT_BRANCH'
-      when: always
+      when: on_success
 
 plan:
   stage: plan
   dependencies:
     - init
   script:
-    - terraform init -backend-config=backend-${BACKEND_ENV}.hcl
+    - terraform init -reconfigure -backend-config=backend-${BACKEND_ENV}.hcl
     - terraform plan -var-file=${TF_VAR_FILE} -out=tfplan
     - terraform show -no-color tfplan
   artifacts:
@@ -60,14 +60,14 @@ plan:
     expire_in: 1 hour
   rules:
     - if: '$CI_COMMIT_BRANCH'
-      when: always
+      when: on_success
 
 apply:
   stage: apply
   dependencies:
     - plan
   script:
-    - terraform init -backend-config=backend-${BACKEND_ENV}.hcl
+    - terraform init -reconfigure -backend-config=backend-${BACKEND_ENV}.hcl
     - terraform apply -input=false tfplan
   rules:
     - if: '$CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_BRANCH == "stage" || $CI_COMMIT_BRANCH == "prod"'
