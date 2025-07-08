@@ -1,0 +1,78 @@
+default:
+  cache:
+    key: terraform-cache
+    paths:
+      - .terraform/
+  image:
+    name: hashicorp/terraform:latest
+    entrypoint: [""]
+  tags:
+    - docker
+
+stages:
+  - init
+  - validate
+  - plan
+  - apply
+
+variables:
+  TF_IN_AUTOMATION: "true"
+  TF_LOG: "DEBUG"
+  TF_VAR_FILE: "terraform.tfvars"
+
+before_script:
+  - chmod +x scripts/download-tfvars.sh scripts/backend-env.sh
+  - export BACKEND_ENV=$(./scripts/backend-env.sh)
+  - ./scripts/download-tfvars.sh
+
+init:
+  stage: init
+  script:
+    - terraform --version
+    - terraform init -reconfigure -backend-config=backend-${BACKEND_ENV}.hcl
+    - ls -la
+  rules:
+    - if: '$CI_COMMIT_BRANCH'
+      when: always
+
+validate:
+  stage: validate
+  dependencies:
+    - init
+  script:
+    - terraform init -backend=false
+    - terraform validate
+  rules:
+    - if: '$CI_COMMIT_BRANCH'
+      when: on_success
+
+plan:
+  stage: plan
+  dependencies:
+    - init
+  script:
+    - terraform init -reconfigure -backend-config=backend-${BACKEND_ENV}.hcl
+    - terraform plan -var-file=${TF_VAR_FILE} -out=tfplan
+    - terraform show -no-color tfplan
+  artifacts:
+    paths:
+      - tfplan
+    expire_in: 1 hour
+  rules:
+    - if: '$CI_COMMIT_BRANCH'
+      when: on_success
+
+apply:
+  stage: apply
+  dependencies:
+    - plan
+  script:
+    - terraform init -reconfigure -backend-config=backend-${BACKEND_ENV}.hcl
+    - terraform apply -input=false tfplan
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_BRANCH == "stage" || $CI_COMMIT_BRANCH == "prod"'
+      when: manual
+    - when: never  # All other branches
+
+after_script:
+  - rm -f terraform.tfvars

@@ -6,9 +6,9 @@ resource "aws_msk_cluster" "cloudlake_msk" {
   broker_node_group_info {
     instance_type = "kafka.t3.small"
     client_subnets = [
-      aws_subnet.private_az1.id,
-      aws_subnet.private_az2.id,
-      aws_subnet.private_az3.id
+      aws_subnet.private_core_az1.id,
+      aws_subnet.private_core_az2.id,
+      aws_subnet.private_core_az3.id
     ]
     security_groups = [aws_security_group.msk_sg.id]
     storage_info {
@@ -48,10 +48,7 @@ resource "aws_kms_key" "msk_kms_key" {
   multi_region                       = false
   bypass_policy_lockout_safety_check = false
 
-  tags = {
-    Project     = "Kafka"
-    environment = "dev"
-  }
+  tags = var.tags
 }
 
 data "aws_caller_identity" "current" {}
@@ -101,7 +98,7 @@ resource "aws_kms_key_policy" "kafka_kms_policy" {
 }
 
 resource "aws_security_group" "msk_sg" {
-  name        = "cloudlake-msk-sg-${var.environment}"
+  name        = "${var.project_name}-msk-sg-${var.environment}"
   description = "Security group for MSK cluster"
   vpc_id      = aws_vpc.cloudlake_core.id
 
@@ -112,6 +109,14 @@ resource "aws_security_group" "msk_sg" {
     to_port     = 9094
     protocol    = "tcp"
     cidr_blocks = [aws_vpc.cloudlake_core.cidr_block]
+  }
+
+  ingress {
+    description     = "Allow Kafka plaintext traffic from EC2 client"
+    from_port       = 9092
+    to_port         = 9092
+    protocol        = "tcp"
+    security_groups = [aws_security_group.kafka_client_sg.id]
   }
 
   # Allow MSK to talk to itself (brokers to brokers, etc.)
@@ -158,37 +163,49 @@ resource "aws_iam_role_policy" "msk_connect_execution_policy" {
   role = aws_iam_role.msk_connect_execution_role.id
 
   policy = jsonencode({
-    Version = "2012-10-17"
+    Version = "2012-10-17",
     Statement = [
       {
-        Effect = "Allow"
+        Effect = "Allow",
         Action = [
           "s3:GetObject",
+          "s3:PutObject",
           "s3:ListBucket"
-        ]
+        ],
         Resource = [
           aws_s3_bucket.plugin_bucket.arn,
-          "${aws_s3_bucket.plugin_bucket.arn}/*"
+          "${aws_s3_bucket.plugin_bucket.arn}/*",
+          aws_s3_bucket.raw_data_bucket.arn,
+          "${aws_s3_bucket.raw_data_bucket.arn}/*"
         ]
       },
       {
-        Effect = "Allow"
+        Effect = "Allow",
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:GenerateDataKey"
+        ],
+        Resource = aws_kms_key.msk_kms_key.arn
+      },
+      {
+        Effect = "Allow",
         Action = [
           "logs:CreateLogGroup",
           "logs:CreateLogStream",
           "logs:PutLogEvents"
-        ]
+        ],
         Resource = "*"
       },
       {
-        Effect = "Allow"
+        Effect = "Allow",
         Action = [
           "kafka-cluster:Connect",
           "kafka-cluster:DescribeCluster",
           "kafka-cluster:DescribeConfiguration",
           "kafka-cluster:GetBootstrapBrokers",
           "kafka-cluster:DescribeClusterVpcConnection"
-        ]
+        ],
         Resource = "*"
       }
     ]
@@ -196,7 +213,7 @@ resource "aws_iam_role_policy" "msk_connect_execution_policy" {
 }
 
 resource "aws_mskconnect_connector" "cloudlake_connector" {
-  name                       = "${var.project_name}-msk-connector-${var.environment}"
+  name                       = "${var.project_name}-msk-s3-connector-${var.environment}"
   kafkaconnect_version       = "2.7.1"
   service_execution_role_arn = aws_iam_role.msk_connect_execution_role.arn
 
@@ -206,8 +223,8 @@ resource "aws_mskconnect_connector" "cloudlake_connector" {
       vpc {
         security_groups = [aws_security_group.msk_sg.id]
         subnets = [
-          aws_subnet.private_az1.id,
-          aws_subnet.private_az2.id
+          aws_subnet.private_core_az1.id,
+          aws_subnet.private_core_az2.id
         ]
       }
     }
@@ -224,7 +241,7 @@ resource "aws_mskconnect_connector" "cloudlake_connector" {
   connector_configuration = {
     "connector.class"                = "io.confluent.connect.s3.S3SinkConnector"
     "tasks.max"                      = "1"
-    "topics"                         = "your-kafka-topic"
+    "topics"                         = "s3-raw-topic"
     "s3.bucket.name"                 = aws_s3_bucket.raw_data_bucket.bucket
     "s3.region"                      = var.aws_region
     "flush.size"                     = "1"
@@ -233,6 +250,7 @@ resource "aws_mskconnect_connector" "cloudlake_connector" {
     "partitioner.class"              = "io.confluent.connect.storage.partitioner.DefaultPartitioner"
     "value.converter"                = "org.apache.kafka.connect.json.JsonConverter"
     "value.converter.schemas.enable" = "false"
+    "behavior.on.null.values"        = "ignore"
   }
 
   capacity {
@@ -274,7 +292,7 @@ resource "aws_mskconnect_custom_plugin" "msk_plugin" {
 }
 
 resource "aws_cloudwatch_log_group" "msk_connect_logs" {
-  name = "cloudlake-msk-connect-logs"
+  name = "${var.project_name}-msk-connect-logs"
 }
 
 # MSK Management
@@ -310,58 +328,71 @@ resource "aws_security_group" "kafka_client_sg" {
 }
 
 resource "aws_instance" "kafka_client" {
-  ami                    = "ami-0c2b8ca1dad447f8a" # Ensure this is the correct AMI for your region
+  ami                    = "ami-0c2b8ca1dad447f8a"
   instance_type          = "t3.small"
-  subnet_id              = aws_subnet.private_az1.id
+  subnet_id              = aws_subnet.private_core_az1.id
   vpc_security_group_ids = [aws_security_group.kafka_client_sg.id]
-  key_name               = var.key_name
+  key_name               = var.ec2_msk_key_name
 
   iam_instance_profile = aws_iam_instance_profile.ec2_ssm_profile.name
 
   user_data = <<-EOF
-  #!/bin/bash
-  # Previous user_data script content...
+#!/bin/bash
 
-  # Create client.properties for MSK connectivity
-  mkdir -p /opt/kafka/config
-  cat > /opt/kafka/config/client.properties << 'EOL'
-  security.protocol=SSL
-  ssl.endpoint.identification.algorithm=
-  ssl.truststore.location=/tmp/kafka.client.truststore.jks
-  ssl.truststore.password=changeit
-  EOL
+# Update and install necessary tools
+yum update -y
+amazon-linux-extras install java-openjdk11 -y
+yum install wget -y
+yum install -y tar
 
-  # Create script to set up MSK truststore
-  mkdir -p /opt/kafka/bin
-  cat > /opt/kafka/bin/setup-msk-truststore.sh << 'EOL'
-  #!/bin/bash
-  mkdir -p /tmp/kafka-certs
-  wget -O /tmp/kafka-certs/AmazonRootCA1.pem https://www.amazontrust.com/repository/AmazonRootCA1.pem
-  wget -O /tmp/kafka-certs/AmazonRootCA2.pem https://www.amazontrust.com/repository/AmazonRootCA2.pem
-  wget -O /tmp/kafka-certs/AmazonRootCA3.pem https://www.amazontrust.com/repository/AmazonRootCA3.pem
-  wget -O /tmp/kafka-certs/AmazonRootCA4.pem https://www.amazontrust.com/repository/AmazonRootCA4.pem
-  rm -f /tmp/kafka.client.truststore.jks
-  keytool -keystore /tmp/kafka.client.truststore.jks -alias AmazonRootCA1 -import -file /tmp/kafka-certs/AmazonRootCA1.pem -storepass changeit -noprompt
-  keytool -keystore /tmp/kafka.client.truststore.jks -alias AmazonRootCA2 -import -file /tmp/kafka-certs/AmazonRootCA2.pem -storepass changeit -noprompt
-  keytool -keystore /tmp/kafka.client.truststore.jks -alias AmazonRootCA3 -import -file /tmp/kafka-certs/AmazonRootCA3.pem -storepass changeit -noprompt
-  keytool -keystore /tmp/kafka.client.truststore.jks -alias AmazonRootCA4 -import -file /tmp/kafka-certs/AmazonRootCA4.pem -storepass changeit -noprompt
-  EOL
+# Download and install Kafka
+wget https://downloads.apache.org/kafka/3.7.2/kafka_2.13-3.7.2.tgz -P /tmp
+tar -xvzf /tmp/kafka_2.13-3.7.2.tgz -C /opt
+ln -s /opt/kafka_2.13-3.7.2 /opt/kafka
 
-  chmod +x /opt/kafka/bin/setup-msk-truststore.sh
-  /opt/kafka/bin/setup-msk-truststore.sh
+# Create client.properties for MSK connectivity
+mkdir -p /opt/kafka/config
+cat > /opt/kafka/config/client.properties << 'EOL'
+security.protocol=SSL
+ssl.endpoint.identification.algorithm=
+ssl.truststore.location=/tmp/kafka.client.truststore.jks
+ssl.truststore.password=changeit
+EOL
 
-  # Create Kafka environment configuration
-  cat > /etc/profile.d/kafka-env.sh << 'EOL'
-  #!/bin/bash
-  export JAVA_HOME=/usr/lib/jvm/java-11-openjdk
-  export PATH=$PATH:$JAVA_HOME/bin:/opt/kafka/bin
-  export KAFKA_HEAP_OPTS="-Xmx2G -Xms1G"
-  export KAFKA_JVM_PERFORMANCE_OPTS="-XX:MetaspaceSize=96m -XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:InitiatingHeapOccupancyPercent=35 -XX:G1HeapRegionSize=16M -XX:MinMetaspaceFreeRatio=50 -XX:MaxMetaspaceFreeRatio=80"
-  export KAFKA_OPTS="-Xmx1G -Xms512M"
-  EOL
+# Create script to set up MSK truststore
+mkdir -p /opt/kafka/bin
+cat > /opt/kafka/bin/setup-msk-truststore.sh << 'EOL'
+#!/bin/bash
+mkdir -p /tmp/kafka-certs
+wget -O /tmp/kafka-certs/AmazonRootCA1.pem https://www.amazontrust.com/repository/AmazonRootCA1.pem
+wget -O /tmp/kafka-certs/AmazonRootCA2.pem https://www.amazontrust.com/repository/AmazonRootCA2.pem
+wget -O /tmp/kafka-certs/AmazonRootCA3.pem https://www.amazontrust.com/repository/AmazonRootCA3.pem
+wget -O /tmp/kafka-certs/AmazonRootCA4.pem https://www.amazontrust.com/repository/AmazonRootCA4.pem
+rm -f /tmp/kafka.client.truststore.jks
+keytool -keystore /tmp/kafka.client.truststore.jks -alias AmazonRootCA1 -import -file /tmp/kafka-certs/AmazonRootCA1.pem -storepass changeit -noprompt
+keytool -keystore /tmp/kafka.client.truststore.jks -alias AmazonRootCA2 -import -file /tmp/kafka-certs/AmazonRootCA2.pem -storepass changeit -noprompt
+keytool -keystore /tmp/kafka.client.truststore.jks -alias AmazonRootCA3 -import -file /tmp/kafka-certs/AmazonRootCA3.pem -storepass changeit -noprompt
+keytool -keystore /tmp/kafka.client.truststore.jks -alias AmazonRootCA4 -import -file /tmp/kafka-certs/AmazonRootCA4.pem -storepass changeit -noprompt
+EOL
 
-  chmod +x /etc/profile.d/kafka-env.sh
-  EOF
+chmod +x /opt/kafka/bin/setup-msk-truststore.sh
+/opt/kafka/bin/setup-msk-truststore.sh
+
+# Create Kafka environment configuration with static JAVA_HOME
+export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
+
+cat << EOL > /etc/profile.d/kafka-env.sh
+#!/bin/bash
+export JAVA_HOME=$JAVA_HOME
+export PATH=\$PATH:\$JAVA_HOME/bin:/opt/kafka/bin
+export KAFKA_HEAP_OPTS="-Xmx2G -Xms1G"
+export KAFKA_JVM_PERFORMANCE_OPTS="-XX:MetaspaceSize=96m -XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:InitiatingHeapOccupancyPercent=35 -XX:G1HeapRegionSize=16M -XX:MinMetaspaceFreeRatio=50 -XX:MaxMetaspaceFreeRatio=80"
+export KAFKA_OPTS="-Xmx1G -Xms512M"
+EOL
+
+chmod +x /etc/profile.d/kafka-env.sh
+EOF
+
 
   tags = merge(
     var.tags,
@@ -393,24 +424,47 @@ resource "aws_iam_role_policy_attachment" "ec2_ssm_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
+resource "aws_iam_role_policy" "ec2_kafka_access" {
+  name = "ec2-ssm-msk-access-${var.environment}"
+  role = aws_iam_role.ec2_ssm_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "kafka:GetBootstrapBrokers"
+        ],
+        Resource = "arn:aws:kafka:us-east-1:008966042112:cluster/cloudlake-msk-dev/df3dcf9f-f284-4126-bfb9-456e45044ed1-1"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "ssm_core" {
+  role       = aws_iam_role.ec2_ssm_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
 resource "aws_iam_instance_profile" "ec2_ssm_profile" {
   name = "ec2-ssm-profile-${var.environment}"
   role = aws_iam_role.ec2_ssm_role.name
 }
 
-# SSM Endpoints (modify your existing ones)
+# SSM Endpoints
 resource "aws_vpc_endpoint" "ssm" {
   vpc_id              = aws_vpc.cloudlake_core.id
   service_name        = "com.amazonaws.${var.aws_region}.ssm"
   vpc_endpoint_type   = "Interface"
-  subnet_ids          = [aws_subnet.private_az1.id]
+  subnet_ids          = [aws_subnet.private_core_az1.id]
   security_group_ids  = [aws_security_group.vpce_sg.id]
   private_dns_enabled = true
 
   tags = merge(
     var.tags,
     {
-      Name = "cloudlake-ssm-endpoint-${var.environment}"
+      Name = "${var.project_name}-ssm-endpoint-${var.environment}"
     }
   )
 }
@@ -419,14 +473,14 @@ resource "aws_vpc_endpoint" "ssmmessages" {
   vpc_id              = aws_vpc.cloudlake_core.id
   service_name        = "com.amazonaws.${var.aws_region}.ssmmessages"
   vpc_endpoint_type   = "Interface"
-  subnet_ids          = [aws_subnet.private_az1.id]
+  subnet_ids          = [aws_subnet.private_core_az1.id]
   security_group_ids  = [aws_security_group.vpce_sg.id]
   private_dns_enabled = true
 
   tags = merge(
     var.tags,
     {
-      Name = "cloudlake-ssmmessages-endpoint-${var.environment}"
+      Name = "${var.project_name}-ssmmessages-endpoint-${var.environment}"
     }
   )
 }
@@ -435,14 +489,14 @@ resource "aws_vpc_endpoint" "ec2messages" {
   vpc_id              = aws_vpc.cloudlake_core.id
   service_name        = "com.amazonaws.${var.aws_region}.ec2messages"
   vpc_endpoint_type   = "Interface"
-  subnet_ids          = [aws_subnet.private_az1.id]
+  subnet_ids          = [aws_subnet.private_core_az1.id]
   security_group_ids  = [aws_security_group.vpce_sg.id]
   private_dns_enabled = true
 
   tags = merge(
     var.tags,
     {
-      Name = "cloudlake-ec2messages-endpoint-${var.environment}"
+      Name = "${var.project_name}-ec2messages-endpoint-${var.environment}"
     }
   )
 }
@@ -452,35 +506,13 @@ resource "aws_vpc_endpoint" "s3" {
   vpc_id            = aws_vpc.cloudlake_core.id
   service_name      = "com.amazonaws.${var.aws_region}.s3"
   vpc_endpoint_type = "Gateway"
-  route_table_ids   = [aws_route_table.private_rt.id]
+  route_table_ids   = [aws_route_table.private_core_rt.id]
 
   tags = merge(
     var.tags,
     {
-      Name = "cloudlake-s3-endpoint-${var.environment}"
+      Name = "${var.project_name}-s3-endpoint-${var.environment}"
     }
   )
 }
 
-# Security group for VPC endpoints
-resource "aws_security_group" "vpce_sg" {
-  name        = "vpce-sg-${var.environment}"
-  description = "Security group for VPC endpoints"
-  vpc_id      = aws_vpc.cloudlake_core.id
-
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = [aws_vpc.cloudlake_core.cidr_block]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = var.tags
-}
