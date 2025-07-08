@@ -49,7 +49,13 @@ resource "aws_redshift_cluster" "data_logs_cluster" {
   cluster_subnet_group_name = aws_redshift_subnet_group.redshift_subnet_group.name
 
   publicly_accessible       = true
-  final_snapshot_identifier = "data-logs-cluster-final-snapshot-${var.environment}"
+  final_snapshot_identifier = "data-logs-cluster-final-snapshot-${var.environment}-${time_static.redshift_snapshot.unix}"
+
+  lifecycle {
+    ignore_changes = [
+      maintenance_track_name
+    ]
+  }
 
   tags = merge(
     var.tags,
@@ -58,6 +64,8 @@ resource "aws_redshift_cluster" "data_logs_cluster" {
     }
   )
 }
+
+resource "time_static" "redshift_snapshot" {}
 
 #Cloudwatch
 
