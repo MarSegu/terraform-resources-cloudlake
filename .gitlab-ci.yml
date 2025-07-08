@@ -17,7 +17,7 @@ stages:
 
 variables:
   TF_IN_AUTOMATION: "true"
-  TF_LOG: "DEBUG"
+  TF_LOG: "INFO"
   TF_VAR_FILE: "terraform.tfvars"
 
 before_script:
