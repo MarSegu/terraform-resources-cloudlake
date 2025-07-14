@@ -1,93 +1,180 @@
-# terraform-resources-cloudlake
+# 🌩️ Terraform AWS Infrastructure - Cloudlake
 
+This repository defines and provisions modular AWS infrastructure using Terraform, tailored for the Cloudlake platform. It includes core and data-related AWS services, network components, monitoring, and environment-specific configurations.
 
+---
 
-## Getting started
+## 📁 Project Structure
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+```bash
+.terraform/ # Cached modules/plugins
+scripts/ # Helper scripts
+├── backend-env.sh # Detects environment from branch
+└── download-tfvars.sh # Downloads tfvars from S3
+.gitlab-ci.yml # GitLab CI/CD pipeline
+terraform.tfvars # Default tfvars (overridden by downloaded one)
+backend-.hcl # Backend config per environment
+aws-resources-core-.tf # Core AWS infrastructure
+aws-resources-data-*.tf # Data and analytics infrastructure
+aws-resources-lake-formation.tf # Lake Formation setup
+outputs.tf # Output values
+provider_only_local.tf # Local provider config for non-remote ops
+main.tf # Root Terraform module
+variables.tf # Input variables definition
+README.md # You are here 🚀
+```
+---
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+## 🔁 CI/CD Pipeline
 
-## Add your files
+This project uses GitLab CI/CD with the following stages:
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+- `init`: Initializes Terraform with backend config.
+- `validate`: Ensures configuration is syntactically valid.
+- `plan`: Produces a detailed execution plan.
+- `apply`: Manually triggered on `dev`, `stage`, or `prod` to apply infrastructure changes.
+
+See `.gitlab-ci.yml` for full implementation.
+
+### 🔐 Environments and State Backends
+
+Each environment (`dev`, `stage`, `prod`) uses its own remote backend defined in:
+- `backend-dev.hcl`
+- `backend-stage.hcl`
+- `backend-prod.hcl`
+
+The backend environment is selected dynamically by `scripts/backend-env.sh`.
+
+---
+
+## 🗂️ tfvars Management
+
+`terraform.tfvars` is downloaded dynamically by the pipeline from an S3 bucket using:
+
+```bash
+scripts/download-tfvars.sh
+
+S3 structure:
+
+s3://cloudlake-directory-tf-vars/envs/dev/terraform.tfvars
+s3://cloudlake-directory-tf-vars/envs/stage/terraform.tfvars
+s3://cloudlake-directory-tf-vars/envs/prod/terraform.tfvars
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.yachay.pe/cloudlake/terraform-resources-cloudlake.git
-git branch -M main
-git push -uf origin main
+
+## 🌿 Branching Strategy & Workflow
+
+Branch Name	Purpose	Auto Apply	Environment
+feature/*	New infrastructure	❌	dev (default)
+dev	Development	✅ (manual)	dev
+stage	Pre-production	✅ (manual)	stage
+prod	Production	✅ (manual)	prod
+
+All new infrastructure must be developed in a feature/* branch. MRs should target dev, stage, or prod depending on deployment scope.
+
+## 🛠️ Requesting Infrastructure
+To request infrastructure:
+
+1. Open a ticket with:
+
+    - Purpose and resource description
+
+    - Environment: dev, stage, or prod
+
+    - Cost center tag (if required)
+
+2. Assign to a DevOps engineer.
+
+3. DevOps will:
+
+    - Create a feature/* branch
+
+    - Implement changes
+
+    - Open an PR
+
+    - Share terraform plan output
+
+    - Merge and apply infrastructure upon approval
+
+## 🔍 How to Run Locally
+
+```bash
+
+# Install Terraform (v1.4+ recommended)
+
+- terraform init -reconfigure -backend-config=backend-dev.hcl
+- terraform plan -var-file=terraform.tfvars
+- terraform apply -var-file=terraform.tfvars
 ```
 
-## Integrate with your tools
+🔒 Avoid using terraform apply on stage or prod locally. Use the CI pipeline instead.
 
-- [ ] [Set up project integrations](https://gitlab.yachay.pe/cloudlake/terraform-resources-cloudlake/-/settings/integrations)
+## 📦 Modules and Services
 
-## Collaborate with your team
+- Networking: VPCs, subnets, route tables
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+- Data Platform: EMR, Redshift, S3, MSK
 
-## Test and Deploy
+- Security: IAM roles, KMS encryption
 
-Use the built-in continuous integration in GitLab.
+- Observability: CloudWatch, Cost Monitoring
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+- Governance: AWS Lake Formation
 
-***
+## 📜 Outputs
+Outputs from deployed infrastructure are defined in outputs.tf.
 
-# Editing this README
+## 🧪 Testing & Validation
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+Every push triggers:
 
-## Suggestions for a good README
+- terraform validate
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+- terraform plan with preview output
 
-## Name
-Choose a self-explaining name for your project.
+Use Merge Requests to review plan output before approval.
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+## 📸 Diagram (CI/CD Flow)
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+```bash
+gitlab      feature     branch     master
+  |           |           |          |
+  |---------->init        |          |
+  |---------->validate    |          |
+  |--------------------->plan        |
+  |<---------Infra is created upon merge
+  |----------------------------->merge
+```
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+📬 Support
+For issues or help, contact the DevOps team via JIRA or Teams.
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+# ⚙️ Terraform CI/CD Pipeline
+This project uses GitLab CI/CD to automate Terraform workflows in a consistent and secure manner. The pipeline supports multiple environments (dev, stage, prod) and uses an S3 bucket for remote state management.
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+## 📋 Pipeline Stages
+- init – Initializes the Terraform working directory with the correct backend configuration.
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+- validate – Validates the Terraform configuration files.
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+- plan – Generates an execution plan and outputs it for review.
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+- apply – Applies the Terraform plan manually from protected branches (dev, stage, prod).
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+## 🔄 Branch-Based Behavior
+- Feature branches trigger init, validate, and plan stages.
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+- dev, stage, prod branches allow manual apply for controlled infrastructure changes.
 
-## License
-For open source projects, say how it is licensed.
+## 🧠 Scripts
+- scripts/backend-env.sh – Determines the backend config based on the branch.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+- scripts/download-tfvars.sh – Downloads the correct terraform.tfvars file from S3 using AWS CLI.
+
+## 🔐 Security
+
+- Terraform runs in isolated Docker containers using hashicorp/terraform:latest.
+
+- AWS credentials must be configured securely via GitLab CI/CD variables
