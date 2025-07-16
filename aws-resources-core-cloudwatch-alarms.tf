@@ -14,7 +14,7 @@ resource "aws_cloudwatch_metric_alarm" "msk_disk_usage_high" {
     ClusterName = aws_msk_cluster.cloudlake_msk.cluster_name
   }
 
-  alarm_actions = [aws_sns_topic.alerts.arn] # optional: SNS topic for alerts
+  alarm_actions = [aws_sns_topic.msk_alerts.arn] # optional: SNS topic for alerts
 }
 
 resource "aws_cloudwatch_metric_alarm" "msk_memory_util" {
@@ -33,7 +33,7 @@ resource "aws_cloudwatch_metric_alarm" "msk_memory_util" {
     ClusterName = aws_msk_cluster.cloudlake_msk.cluster_name
   }
 
-  alarm_actions = [aws_sns_topic.alerts.arn]
+  alarm_actions = [aws_sns_topic.msk_alerts.arn]
 }
 
 resource "aws_cloudwatch_metric_alarm" "msk_cpu_util" {
@@ -52,7 +52,7 @@ resource "aws_cloudwatch_metric_alarm" "msk_cpu_util" {
     ClusterName = aws_msk_cluster.cloudlake_msk.cluster_name
   }
 
-  alarm_actions = [aws_sns_topic.alerts.arn]
+  alarm_actions = [aws_sns_topic.msk_alerts.arn]
 }
 
 resource "aws_cloudwatch_metric_alarm" "msk_idle_thread" {
@@ -71,7 +71,7 @@ resource "aws_cloudwatch_metric_alarm" "msk_idle_thread" {
     ClusterName = aws_msk_cluster.cloudlake_msk.cluster_name
   }
 
-  alarm_actions = [aws_sns_topic.alerts.arn]
+  alarm_actions = [aws_sns_topic.msk_alerts.arn]
 }
 
 
