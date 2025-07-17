@@ -25,7 +25,7 @@ resource "aws_sns_topic_subscription" "email_subscription_admin_3" {
 }
 
 # SNS Email Subscription
-resource "aws_sns_topic_subscription" "email_subscription_admin_3" {
+resource "aws_sns_topic_subscription" "email_subscription_admin_4" {
   topic_arn = aws_sns_topic.budget_alerts.arn
   protocol  = "email"
   endpoint  = "jllontop@rcp.pe" 
