@@ -100,3 +100,10 @@ resource "aws_sns_topic_subscription" "email_msk_subscription_admin_3" {
   protocol  = "email"
   endpoint  = "dgarcia@rcp.pe" 
 }
+
+# SNS Email Subscription
+resource "aws_sns_topic_subscription" "email_msk_subscription_admin_3" {
+  topic_arn = aws_sns_topic.msk_alerts.arn
+  protocol  = "email"
+  endpoint  = "jllontop@rcp.pe" 
+}

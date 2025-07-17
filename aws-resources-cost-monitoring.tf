@@ -24,6 +24,13 @@ resource "aws_sns_topic_subscription" "email_subscription_admin_3" {
   endpoint  = "dgarcia@rcp.pe" 
 }
 
+# SNS Email Subscription
+resource "aws_sns_topic_subscription" "email_subscription_admin_3" {
+  topic_arn = aws_sns_topic.budget_alerts.arn
+  protocol  = "email"
+  endpoint  = "jllontop@rcp.pe" 
+}
+
 # IAM Role for AWS Budgets to publish to SNS
 resource "aws_iam_role" "budgets_role" {
   name = "AWSBudgetsSNSRole"
@@ -74,7 +81,7 @@ resource "aws_budgets_budget" "monthly_budget" {
     threshold                  = 40 # 40% of budget
     threshold_type             = "PERCENTAGE"
     notification_type          = "ACTUAL"
-    subscriber_email_addresses = ["msegura@rcp.pe","cparada@rcp.pe","dgarcia@rcp.pe"] 
+    subscriber_email_addresses = ["msegura@rcp.pe","cparada@rcp.pe","dgarcia@rcp.pe","jllontop@rcp.pe"] 
   }
 
   notification {
@@ -82,6 +89,6 @@ resource "aws_budgets_budget" "monthly_budget" {
     threshold                  = 100 # 100% of budget
     threshold_type             = "PERCENTAGE"
     notification_type          = "ACTUAL"
-    subscriber_email_addresses = ["msegura@rcp.pe", "cparada@rcp.pe","dgarcia@rcp.pe"]
+    subscriber_email_addresses = ["msegura@rcp.pe", "cparada@rcp.pe","dgarcia@rcp.pe","jllontop@rcp.pe"]
   }
 }
