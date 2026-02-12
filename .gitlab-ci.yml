@@ -53,7 +53,7 @@ plan:
   script:
     - terraform init -reconfigure -backend-config=backend-${BACKEND_ENV}.hcl
     - terraform plan -var-file=${TF_VAR_FILE} -out=tfplan
-    - terraform show -no-color tfplan
+    - terraform show tfplan
   artifacts:
     paths:
       - tfplan
